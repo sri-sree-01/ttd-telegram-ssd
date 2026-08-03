@@ -30,7 +30,7 @@ def normalize_time(raw):
 
 def _section_status(seg):
     """Return (available:int|None, completed:bool|None) for one section."""
-    if re.search(r"Quota\s*Completed|Sold\s*Out|No\s*Tokens|Completed\b", seg, re.I):
+    if re.search(r"Quota\s*Completed|Sold\s*Out|No\s*Tokens", seg, re.I):
         return None, True
     m = re.search(r"Available\s*Tokens?\s*[:\-]?\s*([\d,]+)", seg, re.I)
     if m:
@@ -61,11 +61,10 @@ def parse_message(text):
     ssd_av, ssd_done = _section_status(ssd_seg)
     mettu_av, mettu_done = _section_status(mettu_seg) if mettu_seg else (None, None)
 
-    is_status = any(
-        v is not None
-        for v in (issue, ssd_av, ssd_done, mettu_av, mettu_done)
-    )
-    if not is_status:
+    # Only accept posts that carry a real status marker; ignore prose
+    # announcements (e.g. "…issued continuously till completed",
+    # "…Issue NOT Started yet") that merely mention these words.
+    if not re.search(r"Current\s*Status|Available\s*Tokens?|Quota\s*Completed", t, re.I):
         return None
     return {
         "issue_started_time": issue,

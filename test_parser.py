@@ -30,6 +30,10 @@ r = parse_message(m5); eq("m5 ssd_done", r['ssd_completed'], True); eq("m5 mettu
 # Non-status message (Telugu announcement) -> None
 eq("m6 non-status", parse_message("టీటీడీ ముఖ్య ప్రజాసంబంధాల అధికారిచే విడుదల చేయబడినది"), None)
 
+# Prose announcement that mentions "completed" / "Mettu" but is NOT a status post -> None
+m7 = "10K SSD & 2K Srivari Mettu tokens for 2nd August Issue NOT Started yet.\n\nGuys pls wait patiently at SSD counters until they receive orders they won't issue but once started all tokens issued continuously till completed"
+eq("m7 prose-not-status", parse_message(m7), None)
+
 # time normaliser variants
 eq("t1", normalize_time("10.30Am"), "10:30 AM")
 eq("t2", normalize_time("1:16 PM"), "01:16 PM")
