@@ -1,8 +1,9 @@
 name: telegram-ssd
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # Triggered every 15 min by Supabase pg_cron (job: telegram-ssd-dispatch) via
+  # the GitHub API — reliable, unlike GitHub's own throttled `schedule:` trigger.
+  # Can still be run by hand from the Actions tab.
   workflow_dispatch: {}
 
 concurrency:
