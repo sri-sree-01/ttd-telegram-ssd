@@ -1,0 +1,32 @@
+name: telegram-ssd-backfill
+
+# Manual one-time (or occasional) backfill of historical SSD status posts.
+# Run it from the Actions tab → "Run workflow", set how many days back.
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to backfill"
+        required: true
+        default: "730"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run backfill
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_SESSION: ${{ secrets.TG_SESSION }}
+          TG_CHANNEL: LaxmiTeluguTechChannel
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKFILL_DAYS: ${{ inputs.days }}
+        run: python backfill_history.py
