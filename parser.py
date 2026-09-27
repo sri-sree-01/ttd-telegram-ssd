@@ -6,9 +6,52 @@ Handles the formats seen in the channel, e.g.:
     • Available Tokens: 9689
     Srivari Mettu Divya Darshan Tokens:
     • Available Tokens: 1949
-and the "Quota Completed" variants. Robust to minor wording/spacing changes.
+and the "Quota Completed" variants. These posts are typed by a person, not a
+bot, so wording drifts: "Issued Started", "Tokens Started @", "Started
+Issuing at", "Sold Out", "No Tokens Available", "Tokens Over" have all been
+seen for what is really the same two events (open / completed). The regexes
+below match on the KEY WORDS (start/issue, complete/sold-out/over/exhausted)
+rather than one fixed phrase, so small typos and reorderings still parse —
+while still requiring the words be adjacent, so prose that merely mentions
+"completed" or "started" in passing (e.g. "Issue NOT Started yet", "...till
+completed") is not mistaken for a real status line.
 """
 import re
+
+# "Issue Started @ 7pm" / "Issued Start@7.00Pm" / "Tokens Started @ 7 PM" /
+# "Token Issue Started @ 7pm" / "Started Issuing at 7pm" / "Distribution
+# Started @ 7am". Each alternative requires the key words to sit right next
+# to each other (only whitespace between), so a negation wedged between them
+# — "Issue NOT Started yet" — breaks the match instead of accidentally
+# satisfying it.
+ISSUE_RE = re.compile(
+    r"(?:"
+    r"Iss\w*\s+Start\w*"                    # Issue(d) Start(ed)
+    r"|Start\w*\s+Iss\w*"                   # Start(ed) Issu(ing)
+    r"|Token\w*\s+(?:Iss\w*\s+)?Start\w*"   # Token(s) Start(ed) / Token(s) Issue Started
+    r"|Distribut\w*\s+Start\w*"             # Distribution Started
+    r")\s*(?:@|at)?\s*(\d{1,2}[.:]?\d{0,2}\s*[APap]\.?\s?[Mm]\.?)",
+    re.I,
+)
+
+# "Quota Completed" / "Tokens Completed" / "Sold Out" / "No Tokens
+# Available" / "Tokens Over" / "Exhausted" / "Fully Booked". Requiring
+# "Quota"/"Token(s)"/"SSD" immediately before "Compl…"/"Over" keeps this from
+# firing on prose that just happens to contain the word "completed" or
+# "over" elsewhere in a sentence.
+COMPLETED_RE = re.compile(
+    r"(?:Quota|Tokens?)\s*Compl\w*"
+    r"|Sold\s*Out"
+    r"|No\s*Tokens?(?:\s*Available)?"
+    r"|(?:Tokens?|Quota|SSD)\s*Over\b"
+    r"|Exhaust\w*"
+    r"|Fully\s*Booked",
+    re.I,
+)
+
+STATUS_HINT_RE = re.compile(
+    r"Current\s*Status|Available\s*Tokens?|" + COMPLETED_RE.pattern, re.I,
+)
 
 
 def normalize_time(raw):
@@ -30,7 +73,7 @@ def normalize_time(raw):
 
 def _section_status(seg):
     """Return (available:int|None, completed:bool|None) for one section."""
-    if re.search(r"Quota\s*Completed|Sold\s*Out|No\s*Tokens", seg, re.I):
+    if COMPLETED_RE.search(seg):
         return None, True
     m = re.search(r"Available\s*Tokens?\s*[:\-]?\s*([\d,]+)", seg, re.I)
     if m:
@@ -45,9 +88,7 @@ def parse_message(text):
     t = text.replace("–", "-").replace("—", "-")  # normalise en/em dashes
 
     issue = None
-    im = re.search(
-        r"Issue\s*Started\s*@?\s*([0-9]{1,2}[.:][0-9]{2}\s*[APap]\.?\s?[Mm]\.?)", t, re.I
-    )
+    im = ISSUE_RE.search(t)
     if im:
         issue = normalize_time(im.group(1))
 
@@ -63,8 +104,10 @@ def parse_message(text):
 
     # Only accept posts that carry a real status marker; ignore prose
     # announcements (e.g. "…issued continuously till completed",
-    # "…Issue NOT Started yet") that merely mention these words.
-    if not re.search(r"Current\s*Status|Available\s*Tokens?|Quota\s*Completed", t, re.I):
+    # "…Issue NOT Started yet") that merely mention these words. A bare
+    # "Issue Started @ …" with no counts yet is still accepted — it's a
+    # real signal (the open time), just an early one.
+    if not (STATUS_HINT_RE.search(t) or im):
         return None
     return {
         "issue_started_time": issue,
