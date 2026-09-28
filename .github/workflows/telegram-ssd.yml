@@ -29,3 +29,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python worker.py
+      # Sarva Darshan (free queue) — reads the "Tirumala Live Status" bot
+      # (@TirumalaLiveBot) into public.sarva_darshan_raw. Runs even if the SSD
+      # step failed, never fails the run, and skips itself when it already
+      # ran in the last 10 min (this workflow is dispatched every 2-15 min).
+      - name: Run Sarva Darshan worker
+        if: always()
+        continue-on-error: true
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_SESSION: ${{ secrets.TG_SESSION }}
+          SARVA_BOT: TirumalaLiveBot
+          SARVA_MIN_INTERVAL_MIN: "10"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python sarva_worker.py

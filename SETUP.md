@@ -55,3 +55,23 @@ python test_parser.py
 ## Reminders
 - Never commit `TG_SESSION` or the service-role key — secrets only.
 - Use a dedicated Telegram account for the session (not your personal one).
+
+## Sarva Darshan (free queue) — Tirumala Live Status bot
+
+`sarva_worker.py` (second step of the same workflow) reads the posts that the
+bot **@TirumalaLiveBot** pushes to our Telegram account, keeps only the Sarva
+Darshan part (`sarva_parser.py`) and upserts it into `public.sarva_darshan_raw`.
+The database then publishes a rounded, nudged snapshot for the app — exact bot
+figures never reach the app.
+
+- Uses the SAME 5 secrets — nothing new to add.
+- First run: if our chat with the bot is empty it sends `/start` once so the
+  bot starts pushing. After that it only listens (nothing is sent).
+- Skips itself if it ran < 10 min ago, so the 2/5-min SSD bursts don't hit
+  Telegram more often.
+- Optional: if the bot ever stops pushing on its own, set env
+  `SARVA_REFRESH_CMD` (e.g. the bot's status command from its Menu — the
+  admin panel's Sarva Darshan tab shows the command list) to ask for a fresh
+  post when the newest one is older than 150 min.
+- Test the parser offline: `python test_sarva_parser.py`
+- Health: ttd_admin.html → 🛕 Sarva Darshan → Worker.
