@@ -15,8 +15,10 @@ Env vars:
   TG_LIMIT                      - how many recent messages to scan (default 20)
   SUPABASE_URL                  - https://<ref>.supabase.co
   SUPABASE_SERVICE_ROLE_KEY     - service role key (server-side only)
+  TG_HARD_TIMEOUT               - kill the run after this many seconds (default 120)
 """
 import os
+import signal
 
 import requests
 from telethon.sync import TelegramClient
@@ -31,6 +33,16 @@ CHANNEL = os.environ.get("TG_CHANNEL", "LaxmiTeluguTechChannel")
 LIMIT = int(os.environ.get("TG_LIMIT", "20"))
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+HARD_TIMEOUT = int(os.environ.get("TG_HARD_TIMEOUT", "120"))
+
+
+def _watchdog(signum, frame):
+    # On 23 Oct 2026 a run hung inside Telethon for 6 h (GitHub's default job
+    # limit). The workflow's concurrency group made every later run wait and
+    # then cancel, so no Telegram posts were read from 1:45 PM to 7:46 PM IST
+    # and the SSD OPEN card went out 1.5 h late. Exit hard instead.
+    print(f"[telegram-ssd] watchdog: no finish after {HARD_TIMEOUT}s, exiting", flush=True)
+    os._exit(3)
 
 
 def upsert(rows):
@@ -51,8 +63,16 @@ def upsert(rows):
 
 
 def main():
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, _watchdog)
+        signal.alarm(HARD_TIMEOUT)
     rows = []
-    with TelegramClient(StringSession(SESSION), API_ID, API_HASH) as client:
+    client = TelegramClient(
+        StringSession(SESSION), API_ID, API_HASH,
+        timeout=20, connection_retries=3, retry_delay=2,
+        request_retries=3, flood_sleep_threshold=30,
+    )
+    with client:
         for msg in client.iter_messages(CHANNEL, limit=LIMIT):
             text = msg.message or ""
             parsed = parse_message(text)
